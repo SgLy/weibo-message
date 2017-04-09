@@ -1,0 +1,11 @@
+appdirs==1.4.3
+beautifulsoup4==4.5.3
+bs4==0.0.1
+olefile==0.44
+packaging==16.8
+Pillow==4.1.0
+pyasn1==0.2.3
+pyparsing==2.2.0
+requests==2.13.0
+rsa==3.4.2
+six==1.10.0
