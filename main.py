@@ -6,6 +6,8 @@ import re
 import json
 from bs4 import BeautifulSoup
 
+from tqdm import tqdm
+
 def get_uid(s):
     re0 = re.compile(r"\$CONFIG\['uid'\]='(\d+)';")
     re1 = re.compile(r'(webchat\.[0-9a-f]{8}\.js)')
@@ -53,7 +55,6 @@ def get_contacts(s):
 
 def get_msg(s, friend):
     friend_uid = friend['uid']
-    print('Getting all messages with uid = %s' % friend_uid)
     url = 'http://api.weibo.com/webim/2/direct_messages/conversation.json'
     data = {
         'source': sid,
@@ -66,6 +67,7 @@ def get_msg(s, friend):
     }
     msg = []
 
+
     # First fetch
     t = s.get(url, headers = headers, params = data).text[25:-13]
     t = json.loads(t)
@@ -74,37 +76,39 @@ def get_msg(s, friend):
         return msg
     t = t['data']
     total_cnt = t['total_number']
-    print('  %d messages in total' % total_cnt)
-    while True:
-        min_mid = 10 ** 20
-        for m in t['direct_messages']:
-            tmp = {
-                'time': m['created_at'],
-                'dir': 'recv' if m['sender']['name'] == friend['name'] else 'sent'
-            }
-            if m['media_type'] == 0:
-                tmp['type'] = 'text'
-                tmp['text'] = m['text']
-            elif m['media_type'] == 1:
-                tmp['type'] = 'picture'
-                tmp['img'] = 'http://upload.api.weibo.com/2/mss/msget?source=%s&fid=%s' % (sid, m['att_ids'][0])
-            else:
-                print('  [DEBUG] New media type: %s' % str(tmp['type']))
-                tmp['type'] = m['media_type']
-                tmp['orig'] = m
-            msg.append(tmp)
-            min_mid = min(min_mid, m['id'])
-        print('  %d messages finished' % len(msg))
-        if len(msg) >= total_cnt:
-            break
-        data['max_id'] = min_mid - 1
-        data['callback'] = 'angular.callbacks._7'
-        t = s.get(url, headers = headers, params = data).text[25:-13]
-        t = json.loads(t)
-        if t['code'] != 1:
-            print('Error occured!')
-            break
-        t = t['data']
+    with tqdm(desc = 'Messages', total = total_cnt, ascii = True, leave = True, unit = '') as inner_bar:
+        while True:
+            min_mid = 10 ** 20
+            updates = 0
+            for m in t['direct_messages']:
+                tmp = {
+                    'time': m['created_at'],
+                    'dir': 'recv' if m['sender']['name'] == friend['name'] else 'sent'
+                }
+                if m['media_type'] == 0:
+                    tmp['type'] = 'text'
+                    tmp['text'] = m['text']
+                elif m['media_type'] == 1:
+                    tmp['type'] = 'picture'
+                    tmp['img'] = 'http://upload.api.weibo.com/2/mss/msget?source=%s&fid=%s' % (sid, m['att_ids'][0])
+                else:
+                    print('  [DEBUG] New media type: %s' % str(tmp['type']))
+                    tmp['type'] = m['media_type']
+                    tmp['orig'] = m
+                msg.append(tmp)
+                updates = updates + 1
+                min_mid = min(min_mid, m['id'])
+            inner_bar.update(updates)
+            if len(msg) >= total_cnt:
+                break
+            data['max_id'] = min_mid - 1
+            data['callback'] = 'angular.callbacks._7'
+            t = s.get(url, headers = headers, params = data).text[25:-13]
+            t = json.loads(t)
+            if t['code'] != 1:
+                print('Error occured!')
+                break
+            t = t['data']
 
     return msg
 
@@ -116,13 +120,11 @@ headers['Referer'] = 'http://api.weibo.com/chat/'
 uid, sid = get_uid(s)
 contacts = get_contacts(s)
 
+print('\nGetting messages...\n')
+outer_bar = tqdm(desc = 'Contacts', total = len(contacts), ascii = True, unit = '')
 msg = {}
 for i, c in enumerate(contacts):
-    print('\n\n#%d in %d' % (i + 1, len(contacts)))
-    if c['remark'] == '':
-        print('Username = %s' % c['name'])
-    else:
-        print('Username = %s, Remark = %s' % (c['name'], c['remark']))
+    outer_bar.update()
     msg[c['uid']] = get_msg(s, c)
 
 import xlwt

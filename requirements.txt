@@ -9,3 +9,4 @@ pyparsing==2.2.0
 requests==2.13.0
 rsa==3.4.2
 six==1.10.0
+tqdm==4.15.0
