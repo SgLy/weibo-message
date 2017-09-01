@@ -51,7 +51,8 @@ def get_contacts(s):
     print('  Get %d contacts' % len(contacts))
     return contacts
 
-def get_msg(s, friend_uid):
+def get_msg(s, friend):
+    friend_uid = friend['uid']
     print('Getting all messages with uid = %s' % friend_uid)
     url = 'http://api.weibo.com/webim/2/direct_messages/conversation.json'
     data = {
@@ -79,8 +80,7 @@ def get_msg(s, friend_uid):
         for m in t['direct_messages']:
             tmp = {
                 'time': m['created_at'],
-                'sender': m['sender']['name'],
-                'recipient': m['recipient']['name']
+                'dir': 'recv' if m['sender']['name'] == friend['name'] else 'sent'
             }
             if m['media_type'] == 0:
                 tmp['type'] = 'text'
@@ -123,7 +123,26 @@ for i, c in enumerate(contacts):
         print('Username = %s' % c['name'])
     else:
         print('Username = %s, Remark = %s' % (c['name'], c['remark']))
-    msg[c['uid']] = get_msg(s, c['uid'])
+    msg[c['uid']] = get_msg(s, c)
 
-with open('debug.txt', 'w') as f:
-    json.dump({'contacts': contacts, 'msg': msg}, f)
+import xlwt
+def add_row(worksheet, i, data):
+    for j, d in enumerate(data):
+        worksheet.write(i, j, label = d)
+
+workbook = xlwt.Workbook(encoding = 'utf8')
+contact_sheet = workbook.add_sheet('Contacts')
+msg_sheet = workbook.add_sheet('Message')
+add_row(contact_sheet, 0, ['', 'UID', 'Name', 'Remark'])
+add_row(msg_sheet, 0, ['Time', 'Name', 'Direction', 'Type', 'Content'])
+msg_row = 1
+for i, c in enumerate(contacts):
+    add_row(contact_sheet, i + 1, [i, c['uid'], c['name'], c['remark']])
+    for m in msg[c['uid']]:
+        name = c['remark'] if c['remark'] != '' else c['name']
+        if m['type'] == 'text':
+            add_row(msg_sheet, msg_row, [m['time'], name, m['dir'], m['type'], m['text']])
+        elif m['type'] == 'picture':
+            add_row(msg_sheet, msg_row, [m['time'], name, m['dir'], m['type'], m['img']])
+        msg_row = msg_row + 1
+workbook.save('result.xls')
